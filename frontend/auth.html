@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <script>
+        (function () {
+            function themeFromUrl() {
+                try {
+                    var t = new URLSearchParams(window.location.search).get('theme');
+                    return (t === 'light' || t === 'dark') ? t : null;
+                } catch (e) { return null; }
+            }
+            var theme = themeFromUrl();
+            if (!theme) {
+                try {
+                    var saved = localStorage.getItem('phisdetect-theme');
+                    if (saved === 'light' || saved === 'dark') theme = saved;
+                } catch (e) {}
+            }
+            if (theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In — PhisDetect</title>
+    <meta name="description" content="PhisDetect" />
+    <meta name="theme-color" content="#00ff41" />
+
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2L4 7v8c0 5.5 4.2 10.7 12 13 7.8-2.3 12-7.5 12-13V7z' fill='%2300ff41' opacity='0.9'/%3E%3Cpath d='M16 4L6 8.5v6.5c0 4.5 3.5 9 10 11 6.5-2 10-6.5 10-11V8.5z' fill='%231a1a2e'/%3E%3Cpath d='M14.5 18l-4-4 1.5-1.5L14.5 15 20 9.5l1.5 1.5z' fill='%2300ff41'/%3E%3C/svg%3E" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+    <link rel="stylesheet" href="css/main.css?v=9" />
+    <link rel="stylesheet" href="css/components.css?v=17" />
+    <link rel="stylesheet" href="css/responsive.css" />
+
+    <style>
+        .auth-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .auth-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        .auth-brand .brand-icon {
+            color: var(--green);
+            font-size: 26px;
+        }
+
+        .auth-brand .highlight {
+            color: var(--green);
+        }
+
+        .auth-tabs {
+            margin-bottom: 20px;
+        }
+
+        .auth-msg {
+            font-size: 13px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .auth-msg.error {
+            display: block;
+            background: rgba(255, 59, 59, 0.12);
+            border: 1px solid rgba(255, 59, 59, 0.4);
+            color: #ff6b6b;
+        }
+
+        .auth-msg.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: var(--green);
+        }
+
+        .auth-back {
+            text-align: center;
+            margin-top: 18px;
+        }
+
+        .auth-back a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .auth-back a:hover {
+            color: var(--green);
+        }
+
+        .auth-panel {
+            display: none;
+        }
+
+        .auth-panel.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="terminal-grid"></div>
+    <div class="scanlines scanlines-subtle"></div>
+
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <i class="fa-solid fa-shield-halved brand-icon"></i>
+                <div>Phis<span class="highlight">Detect</span></div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="tabs auth-tabs" role="tablist">
+                        <button class="tab active" data-auth-tab="login" role="tab" aria-selected="true">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Sign In</span>
+                        </button>
+                        <button class="tab" data-auth-tab="signup" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>Sign Up</span>
+                        </button>
+                    </div>
+
+                    <div id="authMsg" class="auth-msg" role="alert"></div>
+
+                    <!-- SIGN IN -->
+                    <form class="auth-panel active" id="loginForm" novalidate>
+                        <div class="input-group mb-16">
+                            <label for="loginEmail">Email</label>
+                            <input class="input-text" type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" required />
+                        </div>
+                        <div class="input-group mb-16">
+                            <label for="loginPassword">Password</label>
+                            <input class="input-text" type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" required />
+                        </div>
+                        <button class="btn btn-primary" type="submit" id="loginBtn" style="width: 100%;">
+                            <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                        </button>
+                    </form>
+
+                    <!-- SIGN UP -->
+                    <form class="auth-panel" id="signupForm" novalidate>
+                        <div class="input-group mb-16">
+                            <label for="signupName">Display name</label>
+                            <input class="input-text" type="text" id="signupName" placeholder="Your name" maxlength="24" autocomplete="name" />
+                        </div>
+                        <div class="input-group mb-16">
+                            <label for="signupEmail">Email</label>
+                            <input class="input-text" type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email" required />
+                        </div>
+                        <div class="input-group mb-16">
+                            <label for="signupPassword">Password</label>
+                            <input class="input-text" type="password" id="signupPassword" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" required />
+                        </div>
+                        <button class="btn btn-primary" type="submit" id="signupBtn" style="width: 100%;">
+                            <i class="fa-solid fa-user-plus"></i> Create Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="auth-back">
+                <a href="index.html"><i class="fa-solid fa-arrow-left"></i> Back to scanner</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js?v=4"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            const msg = document.getElementById('authMsg');
+
+            function showMsg(text, type) {
+                msg.textContent = text;
+                msg.className = 'auth-msg ' + (type === 'error' ? 'error' : 'success');
+            }
+
+            function clearMsg() {
+                msg.textContent = '';
+                msg.className = 'auth-msg';
+            }
+
+            // Tab switching
+            document.querySelectorAll('[data-auth-tab]').forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    const target = this.dataset.authTab;
+                    document.querySelectorAll('[data-auth-tab]').forEach(function (t) {
+                        t.classList.toggle('active', t === tab);
+                        t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+                    });
+                    document.querySelectorAll('.auth-panel').forEach(function (p) {
+                        p.classList.toggle('active', p.id === target + 'Form');
+                    });
+                    clearMsg();
+                });
+            });
+
+            // If already logged in, skip straight through
+            if (AuthManager.isLoggedIn) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            function disableBtn(btn, disabled) {
+                btn.disabled = disabled;
+                btn.style.opacity = disabled ? '0.6' : '1';
+            }
+
+            function onSuccess(user) {
+                if (window.ProfileManager && window.ProfileManager.setLoggedInUser) {
+                    window.ProfileManager.setLoggedInUser(user);
+                }
+                localStorage.removeItem('phisdetect-user');
+                window.location.href = 'index.html';
+            }
+
+            document.getElementById('loginForm').addEventListener('submit', async function (e) {
+                e.preventDefault();
+                clearMsg();
+                const email = document.getElementById('loginEmail').value.trim();
+                const password = document.getElementById('loginPassword').value;
+                if (!email || !password) {
+                    showMsg('Enter your email and password.', 'error');
+                    return;
+                }
+                const btn = document.getElementById('loginBtn');
+                disableBtn(btn, true);
+                try {
+                    const user = await AuthManager.login(email, password);
+                    onSuccess(user);
+                } catch (err) {
+                    showMsg(err.message, 'error');
+                    disableBtn(btn, false);
+                }
+            });
+
+            document.getElementById('signupForm').addEventListener('submit', async function (e) {
+                e.preventDefault();
+                clearMsg();
+                const name = document.getElementById('signupName').value.trim();
+                const email = document.getElementById('signupEmail').value.trim();
+                const password = document.getElementById('signupPassword').value;
+                if (!email || !password) {
+                    showMsg('Email and password are required.', 'error');
+                    return;
+                }
+                if (password.length < 8) {
+                    showMsg('Password must be at least 8 characters.', 'error');
+                    return;
+                }
+                const btn = document.getElementById('signupBtn');
+                disableBtn(btn, true);
+                try {
+                    const user = await AuthManager.signup(email, password, name);
+                    onSuccess(user);
+                } catch (err) {
+                    showMsg(err.message, 'error');
+                    disableBtn(btn, false);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
