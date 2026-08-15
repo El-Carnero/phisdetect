@@ -3,7 +3,7 @@
 ```
 phisdetect/
 ├── .gitignore                      # Tells Git which files to skip (venv, models, logs, secrets)
-├── README.md                       # The friendly front-page readme: what the app is and how to run it
+├── README.md                       # The front-page readme: what the app is and how to run it
 │
 ├── intel/                          # The internal documentation (this folder)
 │   ├── structure.md                # This file — the map of every folder and file
