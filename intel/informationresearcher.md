@@ -3,7 +3,8 @@
 **Role copy:** this document is the one-stop index of everything used to build
 PhisDetect. It lists the **tech stack**, **datasets**, **methodologies**,
 **references** and key **concepts** so you can research each item and speak
-confidently about it in the vivas.
+about it in the vivas.
+
 ---
 
 ## 1. The project in one breath
