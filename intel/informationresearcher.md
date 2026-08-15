@@ -3,10 +3,7 @@
 **Role copy:** this document is the one-stop index of everything used to build
 PhisDetect. It lists the **tech stack**, **datasets**, **methodologies**,
 **references** and key **concepts** so you can research each item and speak
-confidently about it in the vivas. Every fact was checked directly against the
-code — treat it as your source of truth, and verify anything you're unsure of
-against the deeper docs listed in §6.
-
+confidently about it in the vivas.
 ---
 
 ## 1. The project in one breath
