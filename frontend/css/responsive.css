@@ -278,7 +278,7 @@
     }
 
     .input-terminal .input-text {
-        padding-left: 38px;
+        padding-left: 16px;
     }
 
     /* Risk label */
@@ -691,7 +691,7 @@
     }
 
     .input-terminal .input-text {
-        padding-left: 32px;
+        padding-left: 16px;
     }
 
     .input-group label {
@@ -1131,7 +1131,7 @@
     }
 
     .input-terminal .input-text {
-        padding-left: 28px;
+        padding-left: 16px;
     }
 
     .risk-label {

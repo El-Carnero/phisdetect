@@ -371,11 +371,11 @@
 }
 
 .input-terminal .input-text {
-    padding-left: 44px;
+    padding-left: 16px;
 }
 
 .input-terminal .input-textarea {
-    padding-left: 44px;
+    padding-left: 16px;
     padding-top: 14px;
     min-height: 100px;
 }
