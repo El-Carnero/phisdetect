@@ -9,7 +9,7 @@ import ssl
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pymongo
 from dotenv import load_dotenv
@@ -1401,6 +1401,62 @@ def report_threat():
     return jsonify({"ok": True})
 
 
+def _build_scan_trend(email, days=14):
+    """Per-day counts over the last `days` days for the sparklines.
+
+    Scans and threats come from the scan-event log, reports from the
+    report-event log. Points are approximated as reports*10 plus the day's
+    minigame scores (minigame rounds credit points immediately).
+    """
+    try:
+        start = datetime.now(timezone.utc) - timedelta(days=days - 1)
+        start_day = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        ndays = (datetime.now(timezone.utc).replace(
+            hour=23, minute=59, second=59) - start_day).days + 1
+
+        buckets = {
+            (start_day + timedelta(days=i)).date(): {"scans": 0, "threats": 0,
+                                                     "reports": 0, "points": 0}
+            for i in range(ndays)
+        }
+
+        for s in _scan_events.find({"email": email, "ts": {"$gte": start_day.isoformat()}},
+                                   {"_id": 0, "risk": 1, "ts": 1}):
+            day, risk = _ts_day(s.get("ts")), s.get("risk", "safe")
+            if day in buckets:
+                buckets[day]["scans"] += 1
+                if risk != "safe":
+                    buckets[day]["threats"] += 1
+
+        for r in _report_events.find({"email": email, "ts": {"$gte": start_day.isoformat()}},
+                                     {"_id": 0, "ts": 1}):
+            day = _ts_day(r.get("ts"))
+            if day in buckets:
+                buckets[day]["reports"] += 1
+                buckets[day]["points"] += 10
+
+        for m in _score_entries.find({"email": email, "ts": {"$gte": start_day.isoformat()}},
+                                     {"_id": 0, "score": 1, "ts": 1}):
+            day = _ts_day(m.get("ts"))
+            if day in buckets:
+                buckets[day]["points"] += int(m.get("score", 0) or 0)
+
+        return [{"label": k.strftime("%a"), "value": v} for k, v in buckets.items()]
+    except Exception as exc:
+        print(f"[MongoDB] trend failed: {exc}")
+        return []
+
+
+def _ts_day(ts):
+    """Map an ISO timestamp to a UTC date(); tolerates missing values."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(str(ts)).astimezone(timezone.utc).date()
+    except (ValueError, TypeError):
+        return None
+
+
 @app.get("/api/user/stats")
 def user_stats():
     """Dashboard numbers for the logged-in user, computed from the database."""
@@ -1446,6 +1502,7 @@ def user_stats():
         "reportsSubmitted": stats.get("reports", 0),
         "pointsEarned": (stats.get("reports", 0) * 10) + stats.get("minigamePoints", 0),
         "activity": activity[:10],
+        "trend": _build_scan_trend(email),
     })
 
 
@@ -1542,6 +1599,73 @@ def minigame_leaderboard():
                 "ts": e.get("ts", ""),
             } for e in entries]
     return jsonify({"leaderboard": board})
+
+
+# ============================================
+# THREAT MAP (PhishStats world feed, server-cached)
+# ============================================
+
+_PHISHSTATS_KEY = os.environ.get("PHISHSTATS_API_KEY", "")
+_PHISHSTATS_URL = "https://api.phishstats.info/api/phishing"
+_THREAT_CACHE = {"payload": None, "at": 0}
+_THREAT_CACHE_TTL = 3600  # PhishStats refreshes every 90 min; 1h cache respects rate limits
+_THREAT_SAMPLE = 500      # sample recent records, paginated 100/page
+
+
+def _load_threat_map():
+    """Fetch recent phishing records from PhishStats and tally by country code."""
+    headers = {"X-API-Key": _PHISHSTATS_KEY} if _PHISHSTATS_KEY else {}
+    counts = {}
+    seen = 0
+    page = 1
+    while seen < _THREAT_SAMPLE:
+        params = {"_sort": "-id", "_p": page, "_size": 100}
+        resp = requests.get(_PHISHSTATS_URL, params=params, headers=headers, timeout=25)
+        resp.raise_for_status()
+        batch = resp.json()
+        if not isinstance(batch, list) or not batch:
+            break
+        for rec in batch:
+            code = (rec.get("countrycode") or "").upper()
+            if code:
+                counts[code] = counts.get(code, 0) + 1
+            seen += 1
+        page += 1
+    countries = [{"code": c, "count": n} for c, n in
+                 sorted(counts.items(), key=lambda kv: -kv[1])]
+    return {
+        "countries": countries,
+        "sampleSize": seen,
+        "updated": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/threats/map")
+def threats_map():
+    global _THREAT_CACHE
+    now = time.time()
+    if _THREAT_CACHE["payload"] and now - _THREAT_CACHE["at"] < _THREAT_CACHE_TTL:
+        payload = dict(_THREAT_CACHE["payload"])
+        payload["cached"] = True
+        return jsonify(payload)
+
+    try:
+        payload = _load_threat_map()
+    except Exception as exc:
+        print(f"[PhishStats] threat map fetch failed: {exc}")
+        if _THREAT_CACHE["payload"]:
+            payload = dict(_THREAT_CACHE["payload"])
+            payload["cached"] = True
+            payload["stale"] = True
+            return jsonify(payload)
+        return jsonify({
+            "countries": [],
+            "error": "Threat map unavailable",
+            "updated": datetime.now(timezone.utc).isoformat(),
+        }), 503
+
+    _THREAT_CACHE = {"payload": payload, "at": now}
+    return jsonify(payload)
 
 
 if __name__ == "__main__":

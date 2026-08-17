@@ -166,62 +166,114 @@
                 STATS GRID
                 ========================================== -->
                 <div class="stats-grid">
+                    <!-- Points Earned -->
+                    <div class="card stat-card points">
+                        <div class="stat-info">
+                            <div class="stat-icon">
+                                <i class="fa-regular fa-star"></i>
+                            </div>
+                            <div class="stat-number" id="pointsEarned">0</div>
+                            <div class="stat-caption">Points Earned</div>
+                        </div>
+                        <div class="stat-spark">
+                            <svg id="sparkPoints" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
+                            <span class="delta-badge" id="deltaPoints"></span>
+                        </div>
+                    </div>
+
                     <!-- Total Scans -->
                     <div class="card stat-card">
-                        <div class="stat-icon">
-                            <i class="fa-solid fa-magnifying-glass"></i>
+                        <div class="stat-info">
+                            <div class="stat-icon">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </div>
+                            <div class="stat-number" id="totalScans">0</div>
+                            <div class="stat-caption">Total Scans</div>
                         </div>
-                        <div class="stat-number" id="totalScans">0</div>
-                        <div class="stat-caption">Total Scans</div>
+                        <div class="stat-spark">
+                            <svg id="sparkScans" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
+                            <span class="delta-badge" id="deltaScans"></span>
+                        </div>
                     </div>
 
                     <!-- Threats Detected -->
                     <div class="card stat-card threats">
-                        <div class="stat-icon">
-                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div class="stat-info">
+                            <div class="stat-icon">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <div class="stat-number" id="threatsDetected">0</div>
+                            <div class="stat-caption">Threats Detected</div>
                         </div>
-                        <div class="stat-number" id="threatsDetected">0</div>
-                        <div class="stat-caption">Threats Detected</div>
+                        <div class="stat-spark">
+                            <svg id="sparkThreats" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
+                            <span class="delta-badge" id="deltaThreats"></span>
+                        </div>
                     </div>
 
                     <!-- Reports Submitted -->
                     <div class="card stat-card reports">
-                        <div class="stat-icon">
-                            <i class="fa-solid fa-flag"></i>
+                        <div class="stat-info">
+                            <div class="stat-icon">
+                                <i class="fa-solid fa-flag"></i>
+                            </div>
+                            <div class="stat-number" id="reportsSubmitted">0</div>
+                            <div class="stat-caption">Reports Submitted</div>
                         </div>
-                        <div class="stat-number" id="reportsSubmitted">0</div>
-                        <div class="stat-caption">Reports Submitted</div>
-                    </div>
-
-                    <!-- Points Earned -->
-                    <div class="card stat-card points">
-                        <div class="stat-icon">
-                            <i class="fa-regular fa-star"></i>
+                        <div class="stat-spark">
+                            <svg id="sparkReports" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
+                            <span class="delta-badge" id="deltaReports"></span>
                         </div>
-                        <div class="stat-number" id="pointsEarned">0</div>
-                        <div class="stat-caption">Points Earned</div>
                     </div>
                 </div>
 
                 <!-- ==========================================
-                RECENT ACTIVITY
+                THREAT MAP + RECENT ACTIVITY (side-by-side)
                 ========================================== -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <i class="fa-solid fa-clock-rotate-left"></i>
-                            Recent Activity
+                <div class="dashboard-grid">
+                    <!-- Threat Map -->
+                    <div class="card threat-map-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-earth-americas"></i>
+                                Phishing Threat Map
+                            </div>
+                            <span class="status-badge gray" id="threatMapBadge">
+                                <span class="badge-dot"></span>
+                                Loading
+                            </span>
                         </div>
-                        <span class="status-badge green">
-                            <span class="badge-dot"></span>
-                            Live
-                        </span>
+                        <div class="card-body">
+                            <div class="threat-map-meta">
+                                <span id="threatMapSubtitle">Sampling recent phishing activity worldwide…</span>
+                                <span class="threat-map-source">Data: <a href="https://www.phishstats.info" target="_blank" rel="noopener">PhishStats</a></span>
+                            </div>
+                            <div id="threatMap" class="threat-map" role="img" aria-label="World map of phishing activity by country"></div>
+                            <div id="threatMapEmpty" class="threat-map-empty hidden">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <p>Threat map unavailable right now.<br />Scans between your scans and the phishing feed.</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="terminal-log" id="activityLog">
-                            <div class="log-line">
-                                <span class="log-time">--:--:--</span>
-                                <span class="log-gray">System ready. Waiting for activity...</span>
+
+                    <!-- Recent Activity -->
+                    <div class="card activity-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                                Recent Activity
+                            </div>
+                            <span class="status-badge green">
+                                <span class="badge-dot"></span>
+                                Live
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="terminal-log" id="activityLog">
+                                <div class="log-line">
+                                    <span class="log-time">--:--:--</span>
+                                    <span class="log-gray">System ready. Waiting for activity...</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -304,8 +356,13 @@
     <script src="js/auth.js?v=4"></script>
     <script src="js/profile.js?v=10"></script>
     <script src="js/navigation.js?v=8"></script>
+    <script src="js/country_names.js"></script>
+    <script src="js/threatmap.js"></script>
     <script src="js/dashboard.js?v=9"></script>
     <script src="js/app.js"></script>
+
+    <!-- ECharts (threat map) -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 
 </body>
 </html>

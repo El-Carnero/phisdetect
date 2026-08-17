@@ -12,7 +12,8 @@ const DashboardManager = {
         threatsDetected: 0,
         reportsSubmitted: 0,
         pointsEarned: 0,
-        activityLog: []
+        activityLog: [],
+        trend: null
     },
 
     /**
@@ -46,6 +47,7 @@ const DashboardManager = {
                 date: a.date || ''
             }));
         }
+        this.state.trend = (stats.trend && Array.isArray(stats.trend)) ? stats.trend : null;
 
         this.saveState();
         this.renderStats();
@@ -107,7 +109,7 @@ const DashboardManager = {
     },
 
     /**
-     * Render statistics cards
+     * Render statistics cards (+ sparklines and delta badges)
      */
     renderStats() {
         const elements = {
@@ -121,6 +123,141 @@ const DashboardManager = {
         this.animateValue(elements.threatsDetected, this.state.threatsDetected);
         this.animateValue(elements.reportsSubmitted, this.state.reportsSubmitted);
         this.animateValue(elements.pointsEarned, this.state.pointsEarned);
+
+        this.renderSparklines();
+    },
+
+    /**
+     * 7-day series per metric for the sparklines.
+     * Logged-in users get authoritative data from the backend trend;
+     * guests build the series from their local activity log.
+     */
+    trendSeries() {
+        if (Array.isArray(this.state.trend) && this.state.trend.length >= 7) {
+            return this.seriesFromBackendTrend();
+        }
+        return this.seriesFromActivityLog();
+    },
+
+    seriesFromBackendTrend() {
+        const t = this.state.trend;
+        const series = { scans: [], threats: [], reports: [], points: [] };
+        t.forEach(d => {
+            const v = d.value || {};
+            series.scans.push(v.scans || 0);
+            series.threats.push(v.threats || 0);
+            series.reports.push(v.reports || 0);
+            series.points.push(v.points || 0);
+        });
+        return series;
+    },
+
+    seriesFromActivityLog() {
+        const days = 14;
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+        const buckets = [];
+        for (let i = 0; i < days; i++) {
+            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+            buckets.push({ date: d.toDateString(), scans: 0, threats: 0, reports: 0, points: 0 });
+        }
+        this.state.activityLog.forEach(a => {
+            const day = new Date(a.date).toDateString();
+            const bucket = buckets.find(b => b.date === day);
+            if (!bucket) return;
+            if (a.type === 'threat') bucket.threats += 1;
+            else if (a.type === 'report') bucket.reports += 1;
+            else if (a.type === 'points') bucket.points += 1;
+            else if (a.type === 'scan') bucket.scans += 1;
+            else if (a.type === 'system') { /* ignored */ }
+        });
+        return {
+            scans: buckets.map(b => b.scans),
+            threats: buckets.map(b => b.threats),
+            reports: buckets.map(b => b.reports),
+            points: buckets.map(b => b.points)
+        };
+    },
+
+    /**
+     * Draw tiny SVG sparklines + a +/- delta badge on the four stat cards.
+     */
+    renderSparklines() {
+        const series = this.trendSeries();
+        const config = {
+            scans:   { key: 'scans',   path: 'sparkScans',   delta: 'deltaScans',   color: '#00ff41', invert: false },
+            threats: { key: 'threats', path: 'sparkThreats', delta: 'deltaThreats', color: '#ff3b3b', invert: true  },
+            reports: { key: 'reports', path: 'sparkReports', delta: 'deltaReports', color: '#f59e0b', invert: false },
+            points:  { key: 'points',  path: 'sparkPoints',  delta: 'deltaPoints',  color: '#f59e0b', invert: false }
+        };
+        Object.values(config).forEach(c => this.renderSeries(c, series[c.key]));
+    },
+
+    renderSeries(cfg, data) {
+        const svg = document.getElementById(cfg.path);
+        const deltaEl = document.getElementById(cfg.delta);
+        if (!svg) return;
+
+        const full = Array.isArray(data) ? data : [];
+        // Sparkline shows the most recent 7 days; delta compares them to the 7 before.
+        const values = full.slice(-7);
+        const older = full.slice(-14, -7);
+        const len = values.length;
+        const light = (document.documentElement.getAttribute('data-theme') === 'light');
+        const color = light ? { scans: '#00b830', threats: '#ff4a4a', reports: '#d98a1f', points: '#d98a1f' }[cfg.key] : cfg.color;
+
+        const W = 100, H = 52;
+        const PADX = 3;
+        const innerW = W - PADX * 2;
+        const max = Math.max(1, ...values);
+        const stepX = len <= 1 ? 0 : innerW / (len - 1);
+        const pts = values.map((v, i) => {
+            const x = len <= 1 ? W / 2 : PADX + i * stepX;
+            const y = H - 2 - (v / max) * (H - 5);
+            return [x, y];
+        });
+
+        if (len <= 1) {
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            svg.innerHTML = `<line x1="2" y1="${H-3}" x2="${W-2}" y2="${H-3}" stroke="${color}" stroke-width="1" opacity="0.5" stroke-dasharray="3 2" />`;
+        } else {
+            const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+            const areaPath = `${linePath} L${pts[pts.length-1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+            const last = pts[pts.length - 1];
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            svg.innerHTML = `
+                <defs>
+                    <linearGradient id="grad${cfg.path}" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="${color}" stop-opacity="0.40" />
+                        <stop offset="100%" stop-color="${color}" stop-opacity="0.02" />
+                    </linearGradient>
+                </defs>
+                <path d="${areaPath}" fill="url(#grad${cfg.path})" stroke="none" />
+                <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="1.8" fill="${color}" />
+            `;
+        }
+
+        // Delta badge: last 7 days vs the 7 before
+        const current = values.reduce((s, v) => s + v, 0);
+        const prev = older.reduce((s, v) => s + v, 0);
+        if (!deltaEl) return;
+        if (current === 0 && prev === 0) {
+            deltaEl.textContent = '';
+            deltaEl.className = 'delta-badge';
+            return;
+        }
+        let pct;
+        if (prev === 0) pct = current === 0 ? 0 : 100;
+        else pct = ((current - prev) / prev) * 100;
+        const up = pct >= 0;
+        // "invert" colors when the metric being high is bad (threats)
+        const good = cfg.invert ? !up : up;
+        pct = Math.abs(pct);
+        const label = pct >= 100 ? `${Math.round(pct)}%` : `${pct.toFixed(0)}%`;
+        deltaEl.textContent = `${up ? '▲' : '▼'} ${label}`;
+        deltaEl.className = `delta-badge ${good ? 'good' : 'bad'}`;
+        deltaEl.title = `Last 7 days vs the 7 days before`;
     },
 
     /**
@@ -133,8 +270,9 @@ const DashboardManager = {
         if (this.state.activityLog.length === 0) {
             logContainer.innerHTML = `
                 <div class="log-line">
+                    <span class="log-activity-icon log-gray"><i class="fa-solid fa-terminal"></i></span>
+                    <span class="log-message log-gray">System ready. Waiting for activity...</span>
                     <span class="log-time">--:--:--</span>
-                    <span class="log-gray">System ready. Waiting for activity...</span>
                 </div>
             `;
             return;
@@ -148,28 +286,38 @@ const DashboardManager = {
                 || (entry.date ? new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--');
             const icon = this.getActivityIcon(entry.type);
             const colorClass = this.getActivityColor(entry.type);
-            
+            const message = this.escapeHtml(entry.message || '');
+
             return `
                 <div class="log-line">
+                    <span class="log-activity-icon ${colorClass}">
+                        <i class="fa-solid fa-${icon}"></i>
+                    </span>
+                    <span class="log-message">${message}</span>
                     <span class="log-time">${time}</span>
-                    <span class="${colorClass}">${icon} ${entry.message}</span>
                 </div>
             `;
         }).join('');
     },
 
+    escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    },
+
     /**
-     * Get icon for activity type
+     * Get icon (Font Awesome name) for activity type
      */
     getActivityIcon(type) {
         const icons = {
-            scan: '[S]',
-            threat: '[T]',
-            report: '[R]',
-            points: '[P]',
-            system: '[Sys]'
+            scan: 'magnifying-glass',
+            threat: 'triangle-exclamation',
+            report: 'flag',
+            points: 'star',
+            system: 'terminal'
         };
-        return icons[type] || '[•]';
+        return icons[type] || 'circle';
     },
 
     /**
@@ -233,41 +381,41 @@ const DashboardManager = {
     /**
      * Increment scans counter
      */
-    incrementScans(count = 1) {
+    incrementScans(count = 1, detail = '') {
         this.state.totalScans += count;
         this.saveState();
         this.renderStats();
-        this.addActivity('scan', `Scan completed (${count})`);
+        this.addActivity('scan', detail || `Scan completed (${count})`);
     },
 
     /**
      * Increment threats counter
      */
-    incrementThreats(count = 1) {
+    incrementThreats(count = 1, detail = '') {
         this.state.threatsDetected += count;
         this.saveState();
         this.renderStats();
-        this.addActivity('threat', `Threat detected (${count})`);
+        this.addActivity('threat', detail || `Threat detected (${count})`);
     },
 
     /**
      * Increment reports counter
      */
-    incrementReports(count = 1) {
+    incrementReports(count = 1, detail = '') {
         this.state.reportsSubmitted += count;
         this.saveState();
         this.renderStats();
-        this.addActivity('report', `Report submitted (${count})`);
+        this.addActivity('report', detail || `Report submitted (${count})`);
     },
 
     /**
      * Increment points counter
      */
-    incrementPoints(count = 1) {
+    incrementPoints(count = 1, detail = '') {
         this.state.pointsEarned += count;
         this.saveState();
         this.renderStats();
-        this.addActivity('points', `+${count} points earned`);
+        this.addActivity('points', detail || `+${count} points earned`);
     },
 
     /**

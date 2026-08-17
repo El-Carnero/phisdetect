@@ -100,6 +100,14 @@
             } else {
                 console.warn('DashboardManager not found');
             }
+            if (typeof ThreatMap !== 'undefined') {
+                try {
+                    ThreatMap.init();
+                    console.log('ThreatMap initialized');
+                } catch (e) {
+                    console.error('ThreatMap init failed:', e);
+                }
+            }
         } else if (path.includes('minigames.html')) {
             console.log('Minigames page detected');
             if (managers.Minigame) {

@@ -429,9 +429,9 @@ const ScannerManager = {
         // Track the scan locally for guests; logged-in scans are saved by the
         // backend (total scans include both safe and threat results).
         if (window.AuthManager && !AuthManager.isLoggedIn && window.DashboardManager) {
-            window.DashboardManager.incrementScans(1);
+            window.DashboardManager.incrementScans(1, `${type.toUpperCase()} scan · ${result.verdict?.label || result.risk}`);
             if (result.risk !== 'safe') {
-                window.DashboardManager.incrementThreats(1);
+                window.DashboardManager.incrementThreats(1, `${type.toUpperCase()} scan · ${result.verdict?.label || result.risk}`);
             }
         }
     },

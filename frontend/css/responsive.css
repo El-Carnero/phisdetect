@@ -93,6 +93,20 @@
         font-size: 12px;
         max-height: 200px;
     }
+
+    /* Threat map + activity stack on laptops too */
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-grid .threat-map-card,
+    .dashboard-grid .activity-card {
+        min-height: auto;
+    }
+
+    .threat-map {
+        min-height: 340px;
+    }
 }
 
 /* ============================================
@@ -548,6 +562,15 @@
    3. MOBILE PHONES
    ============================================ */
 @media (max-width: 480px) {
+    /* Stat cards become a single column on small phones */
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        min-height: 110px;
+    }
+
     /* Header */
     .header {
         padding: 0 12px;
@@ -786,12 +809,16 @@
     }
 
     .terminal-log .log-line {
-        gap: 8px;
-        padding: 1px 0;
+        gap: 6px;
+        padding: 6px 4px;
+        align-items: flex-start;
+    }
+
+    .terminal-log .log-message {
+        white-space: normal;
     }
 
     .terminal-log .log-time {
-        min-width: 40px;
         font-size: 9px;
     }
 
