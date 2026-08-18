@@ -1457,6 +1457,88 @@ def _ts_day(ts):
         return None
 
 
+_TIMELINE_RANGES = {"day": "hour", "month": "day", "year": "month"}
+
+
+@app.get("/api/user/scans/timeline")
+def user_scans_timeline():
+    """Bar-chart data for the dashboard: scan counts bucketed by range.
+
+    range=day   -> last 24 hours, hourly bucket,
+    range=month -> last 30 days,  daily bucket,
+    range=year  -> last 12 months, monthly bucket.
+    """
+    u = _current_user()
+    if not u:
+        return jsonify({"error": "Not logged in"}), 401
+    email = u["email"]
+    rng = request.args.get("range", "month")
+    if rng not in _TIMELINE_RANGES:
+        return jsonify({"error": "Invalid range"}), 400
+    bucket = _TIMELINE_RANGES[rng]
+
+    try:
+        now = datetime.now(timezone.utc)
+
+        # Build the bucket labels matching Python's strftime formats.
+        if bucket == "hour":
+            start = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=23)
+            steps, step, fmt = 24, timedelta(hours=1), "%H:%M"
+        elif bucket == "day":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=49)
+            steps, step, fmt = 50, timedelta(days=1), "%b"
+        else:  # month — 12 month-start keys (no 31-day drift, no collisions)
+            steps, fmt = 12, "%b"
+            base = now.year * 12 + (now.month - 1)
+            # Keys must be tz-aware (like the parsed scan timestamps) or the
+            # "key in counts" lookup below always fails and the chart shows 0.
+            keys = [datetime((base - steps + 1 + i) // 12, (base - steps + 1 + i) % 12 + 1, 1,
+                             tzinfo=timezone.utc) for i in range(steps)]
+        counts = (dict.fromkeys(keys, 0) if bucket == "month"
+                  else {start + step * i: 0 for i in range(steps)})
+        # Window: inclusive lower bound, exclusive upper bound chosen so string
+        # comparison of ISO timestamps never drops the current bucket (a scan at
+        # "2026-08-18T...+00:00" is lexicographically AFTER "2026-08-02T00:00:00").
+        ts_min = min(counts).isoformat()
+        if bucket == "hour":
+            next_boundary = (max(counts) + timedelta(hours=1)).isoformat()
+        elif bucket == "day":
+            next_boundary = (max(counts) + timedelta(days=1)).isoformat()
+        else:  # month
+            _mk = max(counts)
+            next_boundary = datetime((_mk.year * 12 + _mk.month) // 12,
+                                     ((_mk.year * 12 + _mk.month) % 12) + 1, 1).isoformat()
+        ts_query = {"$gte": ts_min, "$lt": next_boundary}
+
+        for s in _scan_events.find(
+                {"email": email, "ts": ts_query},
+                {"_id": 0, "ts": 1}):
+            ts = s.get("ts")
+            if not ts:
+                continue
+            try:
+                t = datetime.fromisoformat(str(ts)).astimezone(timezone.utc)
+            except (ValueError, TypeError):
+                continue
+            if bucket == "hour":
+                key = t.replace(minute=0, second=0, microsecond=0)
+            elif bucket == "day":
+                key = t.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                key = t.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if key in counts:
+                counts[key] += 1
+
+        return jsonify({
+            "range": rng,
+            "labels": [k.strftime(fmt) for k in sorted(counts)],
+            "counts": [counts[k] for k in sorted(counts)],
+        })
+    except Exception as exc:
+        print(f"[MongoDB] timeline failed: {exc}")
+        return jsonify({"error": "Database unavailable, please try again"}), 503
+
+
 @app.get("/api/user/stats")
 def user_stats():
     """Dashboard numbers for the logged-in user, computed from the database."""
@@ -1541,6 +1623,8 @@ def minigame_result():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid score fields"}), 400
     name = str(data.get("name") or "Guest").strip()[:24] or "Guest"
+    cur = _current_user()
+    cur_email = (cur or {}).get("email")
 
     with _minigame_lock:
         try:
@@ -1554,7 +1638,7 @@ def minigame_result():
                 "game": game,
                 "difficulty": difficulty,
                 "name": name,
-                "email": (_current_user() or {}).get("email"),
+                "email": cur_email,
                 "score": score,
                 "total": total,
                 "streak": streak,
@@ -1569,7 +1653,6 @@ def minigame_result():
             top = _score_entries.count_documents({"game": game, "difficulty": difficulty})
             # Credit the round's points to the account (lifetime total kept in
             # 'user_stats'; the minigame_scores collection is unchanged).
-            cur = _current_user()
             if cur and cur.get("email"):
                 _bump_stats(cur["email"], minigamePoints=score)
         except Exception as exc:
@@ -1577,27 +1660,80 @@ def minigame_result():
             return jsonify({"error": "Database unavailable, score not saved"}), 503
 
     return jsonify({"ok": True, "game": game, "difficulty": difficulty,
-                    "rank": rank, "top": top})
+                    "rank": rank, "top": top,
+                    "globalRank": _minigame_global_rank(
+                        cur_email if cur_email else ("guest:" + name))})
+
+
+def _minigame_player_key(entry):
+    """Identity for a player on the global board: their account email when
+    present, otherwise their submitted display name."""
+    email = (entry.get("email") or "").strip()
+    if email:
+        return email
+    return "guest:" + (entry.get("name") or "Guest").strip()
+
+
+def _minigame_global_board(limit=MINIGAME_TOP_N):
+    """Single leaderboard ranked by total minigame points.
+
+    A player's total is the sum of their best score on every (game, difficulty)
+    board, so grinding one board or spamming repeats can't inflate the total.
+    Returns rows including a private '_key' (the player's email) that callers
+    must strip before returning to the client."""
+    try:
+        entries = list(_score_entries.find(
+            {}, {"game": 1, "difficulty": 1, "name": 1, "email": 1, "score": 1}))
+    except Exception as exc:
+        print(f"[MongoDB] global leaderboard failed: {exc}")
+        return []
+
+    cells = {}
+    for e in entries:
+        key = _minigame_player_key(e)
+        bucket = cells.setdefault(key, {"name": (e.get("name") or "Guest").strip() or "Guest",
+                                        "cells": {}})
+        gd = (e.get("game"), e.get("difficulty"))
+        bucket["cells"][gd] = max(bucket["cells"].get(gd, 0), e.get("score") or 0)
+
+    rows = []
+    for key, bucket in cells.items():
+        total = sum(bucket["cells"].values())
+        if total <= 0:
+            continue
+        per_game = {}
+        for (game, diff), s in bucket["cells"].items():
+            per_game[game] = max(per_game.get(game, 0), s)
+        rows.append({"_key": key, "name": bucket["name"],
+                     "total": total, "perGame": per_game})
+
+    rows.sort(key=lambda r: (-r["total"], r["name"].lower()))
+    for i, r in enumerate(rows[:limit]):
+        r["rank"] = i + 1
+    return rows
+
+
+def _minigame_global_rank(player_key):
+    """Global rank of one player (1-indexed), or None if they have no score."""
+    if not player_key:
+        return None
+    rows = _minigame_global_board(limit=MINIGAME_TOP_N)
+    for r in rows:
+        if r["_key"] == player_key:
+            return r["rank"]
+    return None
 
 
 @app.get("/api/minigame/leaderboard")
 def minigame_leaderboard():
-    board = {}
-    for game in sorted(MINIGAME_TYPES):
-        board[game] = {}
-        for diff in ("easy", "normal", "hard"):
-            try:
-                entries = list(_score_entries.find({"game": game, "difficulty": diff})
-                               .sort([("score", -1), ("streak", -1)]).limit(5))
-            except Exception:
-                entries = []
-            board[game][diff] = [{
-                "name": e.get("name", "Guest"),
-                "score": e.get("score", 0),
-                "total": e.get("total", 1),
-                "streak": e.get("streak", 0),
-                "ts": e.get("ts", ""),
-            } for e in entries]
+    board = []
+    for row in _minigame_global_board(limit=MINIGAME_TOP_N):
+        board.append({
+            "rank": row["rank"],
+            "name": row["name"],
+            "total": row["total"],
+            "perGame": row["perGame"],
+        })
     return jsonify({"leaderboard": board})
 
 
@@ -1607,21 +1743,30 @@ def minigame_leaderboard():
 
 _PHISHSTATS_KEY = os.environ.get("PHISHSTATS_API_KEY", "")
 _PHISHSTATS_URL = "https://api.phishstats.info/api/phishing"
+_PHISHSTATS_UA = "Mozilla/5.0 (PhisDetect)"
 _THREAT_CACHE = {"payload": None, "at": 0}
 _THREAT_CACHE_TTL = 3600  # PhishStats refreshes every 90 min; 1h cache respects rate limits
-_THREAT_SAMPLE = 500      # sample recent records, paginated 100/page
+# PhishStats throttles at ~9-10 requests/min, so an 8-page burst (800 records)
+# is the reliable maximum for a single fetch; larger targets hit 429.
+_THREAT_SAMPLE = 800
 
 
 def _load_threat_map():
     """Fetch recent phishing records from PhishStats and tally by country code."""
-    headers = {"X-API-Key": _PHISHSTATS_KEY} if _PHISHSTATS_KEY else {}
+    headers = {"User-Agent": _PHISHSTATS_UA}
+    if _PHISHSTATS_KEY:
+        headers["X-API-Key"] = _PHISHSTATS_KEY
     counts = {}
     seen = 0
     page = 1
     while seen < _THREAT_SAMPLE:
         params = {"_sort": "-id", "_p": page, "_size": 100}
-        resp = requests.get(_PHISHSTATS_URL, params=params, headers=headers, timeout=25)
-        resp.raise_for_status()
+        try:
+            resp = requests.get(_PHISHSTATS_URL, params=params, headers=headers, timeout=25)
+            resp.raise_for_status()
+        except Exception as exc:
+            print(f"[PhishStats] page {page} failed: {exc}")
+            break
         batch = resp.json()
         if not isinstance(batch, list) or not batch:
             break
@@ -1631,6 +1776,8 @@ def _load_threat_map():
                 counts[code] = counts.get(code, 0) + 1
             seen += 1
         page += 1
+        if seen < _THREAT_SAMPLE:
+            time.sleep(0.5)  # pace pages to respect rate limits
     countries = [{"code": c, "count": n} for c, n in
                  sorted(counts.items(), key=lambda kv: -kv[1])]
     return {

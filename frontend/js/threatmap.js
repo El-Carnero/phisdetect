@@ -130,6 +130,23 @@ const ThreatMap = {
     },
 
     /**
+     * Ramp ceiling for the choropleth: the 90th percentile of country counts,
+     * so a single dominant country (e.g. US hosting) doesn't crush every other
+     * country into the dark end of the color ramp. Countries above the ceiling
+     * clamp to the "High" color.
+     */
+    scaleMax() {
+        const values = ((this.data && this.data.countries) || [])
+            .map(c => c.count)
+            .filter(v => v > 0)
+            .sort((a, b) => a - b);
+        if (!values.length) return 100;
+        if (values.length === 1) return Math.max(1, values[0]);
+        const idx = Math.min(values.length - 1, Math.floor(values.length * 0.9));
+        return Math.max(1, values[idx]);
+    },
+
+    /**
      * Re-render the chart (fetches fresh data from the backend).
      */
     async render() {
@@ -157,8 +174,9 @@ const ThreatMap = {
 
         const total = this.data.countries.reduce((s, c) => s + c.count, 0) || 0;
 
-        // VisualMap auto-ranges against the real max so "100" isn't hardcoded.
-        const max = Math.max(1, ...this.data.countries.map(c => c.count));
+        // VisualMap auto-ranges against the 90th-percentile ceiling so one
+        // outlier country can't flatten the whole color ramp.
+        const max = this.scaleMax();
 
         if (this.worldGeo) {
             try {
@@ -218,7 +236,7 @@ const ThreatMap = {
         btn.addEventListener('click', () => {
             setTimeout(() => {
                 if (this.chart) {
-                    const max = Math.max(1, ...((this.data && this.data.countries) || []).map(c => c.count));
+                    const max = this.scaleMax();
                     const opt = this.buildOption();
                     opt.visualMap.max = max;
                     this.chart.setOption(opt, true);

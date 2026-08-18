@@ -103,15 +103,16 @@ function mgSubmitResult(game, difficulty, score, total, bestStreak, name) {
 }
 
 /**
- * LeaderboardManager — renders the global leaderboard card.
+ * LeaderboardManager — renders the single global leaderboard.
+ * Players are ranked by their total minigame score (best score summed across
+ * every game and difficulty).
  */
 const LeaderboardManager = {
-    gameNames: {
-        'phish-or-legit': 'Phish or Legit',
-        'link-dismantler': 'Link Dismantler',
-        'threat-hunt': 'Threat Hunt'
+    gameShort: {
+        'phish-or-legit': 'PL',
+        'link-dismantler': 'LD',
+        'threat-hunt': 'TH'
     },
-    diffLabels: { easy: 'Easy', normal: 'Normal', hard: 'Hard' },
     el: null,
 
     init() {
@@ -128,32 +129,39 @@ const LeaderboardManager = {
         this.el.innerHTML = '<p class="lb-empty">Loading&hellip;</p>';
         fetch(`${MINIGAME_BACKEND}/api/minigame/leaderboard`)
             .then(r => r.json())
-            .then(d => this.render((d && d.leaderboard) || {}))
+            .then(d => this.render((d && d.leaderboard) || []))
             .catch(() => {
                 this.el.innerHTML = '<p class="lb-error">Leaderboard unavailable &mdash; is the backend running on :3000?</p>';
             });
     },
 
     render(board) {
-        const html = Object.keys(this.gameNames).map(game => {
-            const diffs = ['easy', 'normal', 'hard'].map(diff => {
-                const entries = (board[game] && board[game][diff]) || [];
-                const list = entries.length
-                    ? '<ul class="lb-list">' + entries.map((e, i) =>
-                        `<li><span class="lb-rank">${i + 1}</span>` +
-                        `<span class="lb-name">${this.esc(e.name)}</span>` +
-                        `<span class="lb-score">${e.score}</span></li>`).join('') + '</ul>'
-                    : '<p class="lb-empty">No scores yet</p>';
-                return `<div class="lb-difficulty"><div class="diff-label">${this.diffLabels[diff]}</div>${list}</div>`;
-            }).join('');
-            return `<div class="lb-game"><h3><i class="fa-solid fa-gamepad"></i>${this.gameNames[game]}</h3>${diffs}</div>`;
+        const list = Array.isArray(board) ? board : [];
+        if (!list.length) {
+            this.el.innerHTML = '<p class="lb-empty">No scores yet &mdash; finish a round to join the board!</p>';
+            return;
+        }
+
+        const html = list.map(e => {
+            const sub = Object.keys(this.gameShort)
+                .filter(game => e.perGame && e.perGame[game] > 0)
+                .map(game => `${this.gameShort[game]} ${e.perGame[game]}`)
+                .join(' &middot; ');
+            return `<li><span class="lb-rank">${e.rank}</span>` +
+                `<span class="lb-name">${this.esc(e.name)}${sub ? `<span class="lb-sub">${sub}</span>` : ''}</span>` +
+                `<span class="lb-score" title="Total minigame points">${e.total}</span></li>`;
         }).join('');
-        this.el.innerHTML = html || '<p class="lb-empty">No scores yet &mdash; finish a round to join the board!</p>';
+
+        this.el.innerHTML = `<ul class="lb-list">${html}</ul>`;
     },
 
     onSubmitted(res) {
         if (typeof Utils !== 'undefined' && Utils.toast) {
-            Utils.toast(`Round saved &mdash; rank #${res.rank} on the ${this.diffLabels[res.difficulty] || res.difficulty} board.`, 'success');
+            if (res && res.globalRank) {
+                Utils.toast(`Round saved &mdash; you are #${res.globalRank} on the global leaderboard!`, 'success');
+            } else if (res && res.rank) {
+                Utils.toast('Round saved &mdash; your total minigame score was updated.', 'success');
+            }
         }
         this.load();
     },

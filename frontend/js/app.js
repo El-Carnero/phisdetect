@@ -108,6 +108,14 @@
                     console.error('ThreatMap init failed:', e);
                 }
             }
+            if (typeof ScansChart !== 'undefined') {
+                try {
+                    ScansChart.init();
+                    console.log('ScansChart initialized');
+                } catch (e) {
+                    console.error('ScansChart init failed:', e);
+                }
+            }
         } else if (path.includes('minigames.html')) {
             console.log('Minigames page detected');
             if (managers.Minigame) {

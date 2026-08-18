@@ -49,7 +49,7 @@
     <!-- Custom Styles -->
     <link rel="stylesheet" href="css/main.css?v=9" />
     <link rel="stylesheet" href="css/layout.css?v=10" />
-    <link rel="stylesheet" href="css/components.css?v=18" />
+    <link rel="stylesheet" href="css/components.css?v=20" />
     <link rel="stylesheet" href="css/terminal.css?v=7" />
     <link rel="stylesheet" href="css/status.css" />
     <link rel="stylesheet" href="css/responsive.css" />
@@ -163,66 +163,55 @@
                 </div>
 
                 <!-- ==========================================
-                STATS GRID
+                TOTAL SCANS CHART (75%) + STAT CARDS (25%)
                 ========================================== -->
-                <div class="stats-grid">
-                    <!-- Points Earned -->
-                    <div class="card stat-card points">
-                        <div class="stat-info">
-                            <div class="stat-icon">
-                                <i class="fa-regular fa-star"></i>
+                <div class="scans-stats-row">
+                    <div class="card scans-chart-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-chart-column"></i>
+                                Total Scans
                             </div>
-                            <div class="stat-number" id="pointsEarned">0</div>
-                            <div class="stat-caption">Points Earned</div>
                         </div>
-                        <div class="stat-spark">
-                            <svg id="sparkPoints" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
-                            <span class="delta-badge" id="deltaPoints"></span>
+                        <div class="card-body">
+                            <div id="scansChart" class="scans-chart" role="img" aria-label="Line chart of total scans per month, January through December"></div>
+                            <div id="scansChartEmpty" class="scans-chart-empty hidden">
+                                <i class="fa-solid fa-chart-column"></i>
+                                <p>No scan data yet.<br />Run a scan to start building the chart.</p>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Total Scans -->
-                    <div class="card stat-card">
-                        <div class="stat-info">
-                            <div class="stat-icon">
-                                <i class="fa-solid fa-magnifying-glass"></i>
+                    <div class="scans-stats-col">
+                        <div class="card stat-card points">
+                            <div class="stat-info">
+                                <i class="fa-solid fa-star stat-icon"></i>
+                                <span class="stat-number" id="pointsEarned">0</span>
+                                <span class="stat-caption">Points Earned</span>
                             </div>
-                            <div class="stat-number" id="totalScans">0</div>
-                            <div class="stat-caption">Total Scans</div>
-                        </div>
-                        <div class="stat-spark">
-                            <svg id="sparkScans" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
-                            <span class="delta-badge" id="deltaScans"></span>
-                        </div>
-                    </div>
-
-                    <!-- Threats Detected -->
-                    <div class="card stat-card threats">
-                        <div class="stat-info">
-                            <div class="stat-icon">
-                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            <div class="stat-spark">
+                                <span class="delta-badge" id="deltaPoints"></span>
                             </div>
-                            <div class="stat-number" id="threatsDetected">0</div>
-                            <div class="stat-caption">Threats Detected</div>
                         </div>
-                        <div class="stat-spark">
-                            <svg id="sparkThreats" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
-                            <span class="delta-badge" id="deltaThreats"></span>
-                        </div>
-                    </div>
-
-                    <!-- Reports Submitted -->
-                    <div class="card stat-card reports">
-                        <div class="stat-info">
-                            <div class="stat-icon">
-                                <i class="fa-solid fa-flag"></i>
+                        <div class="card stat-card reports">
+                            <div class="stat-info">
+                                <i class="fa-solid fa-flag stat-icon"></i>
+                                <span class="stat-number" id="reportsSubmitted">0</span>
+                                <span class="stat-caption">Reports Submitted</span>
                             </div>
-                            <div class="stat-number" id="reportsSubmitted">0</div>
-                            <div class="stat-caption">Reports Submitted</div>
+                            <div class="stat-spark">
+                                <span class="delta-badge" id="deltaReports"></span>
+                            </div>
                         </div>
-                        <div class="stat-spark">
-                            <svg id="sparkReports" class="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true"></svg>
-                            <span class="delta-badge" id="deltaReports"></span>
+                        <div class="card stat-card threats">
+                            <div class="stat-info">
+                                <i class="fa-solid fa-triangle-exclamation stat-icon"></i>
+                                <span class="stat-number" id="threatsDetected">0</span>
+                                <span class="stat-caption">Threats Detected</span>
+                            </div>
+                            <div class="stat-spark">
+                                <span class="delta-badge" id="deltaThreats"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -358,6 +347,7 @@
     <script src="js/navigation.js?v=8"></script>
     <script src="js/country_names.js"></script>
     <script src="js/threatmap.js"></script>
+    <script src="js/scanschart.js?v=4"></script>
     <script src="js/dashboard.js?v=9"></script>
     <script src="js/app.js"></script>
 
